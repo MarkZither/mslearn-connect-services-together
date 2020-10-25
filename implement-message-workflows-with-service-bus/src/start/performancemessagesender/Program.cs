@@ -3,21 +3,29 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Azure.ServiceBus;
+using Microsoft.Extensions.Configuration;
 
 namespace performancemessagesender
 {
     class Program
     {
-        const string ServiceBusConnectionString = "";
+        public static IConfigurationRoot Configuration { get; set; }
         const string TopicName = "salesperformancemessages";
         static ITopicClient topicClient;
 
-        static void Main(string[] args)
+        static async Task Main(string[] args)
         {
+            var builder = new ConfigurationBuilder();
+            // tell the builder to look for the appsettings.json file
+            builder
+                .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
+                .AddUserSecrets<Program>();
+
+            Configuration = builder.Build();
 
             Console.WriteLine("Sending a message to the Sales Performance topic...");
 
-            SendPerformanceMessageAsync().GetAwaiter().GetResult();
+            await SendPerformanceMessageAsync();
 
             Console.WriteLine("Message was sent successfully.");
 
@@ -25,12 +33,16 @@ namespace performancemessagesender
 
         static async Task SendPerformanceMessageAsync()
         {
-            // Create a Topic Client here
+            topicClient = new TopicClient(Configuration["ConnectionString"], TopicName);
 
             // Send messages.
             try
             {
-                // Create and send a message here
+                string messageBody = $"Local Total sales for Brazil in August: $13m.";
+                var message = new Message(Encoding.UTF8.GetBytes(messageBody));
+                Console.WriteLine($"Sending message: {messageBody}");
+                await topicClient.SendAsync(message);
+                await topicClient.CloseAsync();
             }
             catch (Exception exception)
             {
@@ -38,6 +50,7 @@ namespace performancemessagesender
             }
 
             // Close the connection to the topic here
+            await topicClient.CloseAsync();
         }
     }
 }
